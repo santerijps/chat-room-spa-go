@@ -34,7 +34,7 @@
     initializeWebSocket(state) {
   
       this.ws = new WebSocket(
-        window.location.protocol === "https:" ? "wss://" : "ws://"
+        (window.location.protocol === "https:" ? "wss://" : "ws://")
         + document.location.host
         + "/ws"
       )
