@@ -89,7 +89,10 @@
             break
 
           case "ping":
-            console.log("WebSocket: Received PING request!")
+            state.ws.send(JSON.stringify({
+              Type: "pong",
+              Body: ((+ new Date()) / 1000).toString()
+            }))
             break
 
         }
