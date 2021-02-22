@@ -1,0 +1,26 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: Arial, Helvetica, sans-serif;
+  margin: 0;
+}
+
+button, input, select, option {
+  font-size: larger;
+}
+
+@media(max-width: 70em) {
+  button, input, select, option {
+    font-size: smaller;
+  }
+  * {
+    font-size: 1em;
+  }
+}
+
+p {
+  margin-bottom: 10px;
+  margin-top: 10px;
+}
