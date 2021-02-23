@@ -37,16 +37,23 @@ func NewChatUser(name string, conn *websocket.Conn) *ChatUser {
 	return &ChatUser{name, conn, nil}
 }
 
+// ChatRoomTyper represents a user typing in a chat
+type ChatRoomTyper struct {
+	Name   string
+	Typing bool
+}
+
 // ChatRoom represents a chat room.
 type ChatRoom struct {
 	Name         string
 	Users        []*ChatUser // Users in this specific chat room.
 	MessageQueue chan *ChatMessage
+	TypingQueue  chan *ChatRoomTyper
 }
 
 // NewChatRoom creates a new chat room.
 func NewChatRoom(name string) *ChatRoom {
-	room := ChatRoom{name, []*ChatUser{}, make(chan *ChatMessage)}
+	room := ChatRoom{name, []*ChatUser{}, make(chan *ChatMessage), make(chan *ChatRoomTyper)}
 	go ChatRoomBroadcaster(&room)
 	return &room
 }
@@ -67,17 +74,27 @@ func (room *ChatRoom) RemoveUserByConn(conn *websocket.Conn) bool {
 func ChatRoomBroadcaster(room *ChatRoom) {
 	for {
 		select {
+
 		case msg := <-room.MessageQueue:
-			byteData, err := json.Marshal(*msg)
-			if err != nil {
-				continue
-			}
-			webSocketMessage := WebSocketMessage{"send", string(byteData)}
-			for _, user := range room.Users {
-				if err := user.Conn.WriteJSON(webSocketMessage); err != nil {
-					log.Println("ChatRoomBroadcastError", err.Error())
-				}
-			}
+			Broadcast(room, "send", *msg)
+
+		case typing := <-room.TypingQueue:
+			Broadcast(room, "typing", *typing)
+		}
+	}
+}
+
+// Broadcast sends a message to each user in a specified chat room
+func Broadcast(room *ChatRoom, _type string, data interface{}) {
+	log.Println("Broadcasting to", "#"+room.Name, _type, data)
+	byteData, err := json.Marshal(data)
+	if err != nil {
+		return
+	}
+	webSocketMessage := WebSocketMessage{_type, string(byteData)}
+	for _, user := range room.Users {
+		if err := user.Conn.WriteJSON(webSocketMessage); err != nil {
+			log.Println("ChatRoomBroadcastError", err.Error())
 		}
 	}
 }

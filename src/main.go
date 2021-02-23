@@ -109,6 +109,14 @@ func onMessage(c *websocket.Conn, message WebSocketMessage) {
 			}
 		}
 
+	case "typing":
+		if user, found := app.FindUserByConn(c); found {
+			if user.Room != nil {
+				name := strings.Title(strings.ToLower(user.Name))
+				user.Room.TypingQueue <- &ChatRoomTyper{name, message.Body == "true"}
+			}
+		}
+
 	}
 }
 

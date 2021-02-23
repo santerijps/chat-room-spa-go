@@ -23,6 +23,7 @@
       state.chatlog = []
       state.nickname = null
       state.room = null
+      state.typers = []
       this.initializeWebSocket(state)
       this.views = {
         nameChooser: new NameChooserComponent(state),
@@ -87,6 +88,19 @@
               })
             }
             break
+  
+          case "typing":
+            let t = JSON.parse(msg.Body)
+            if (t.Typing) {
+              t.Name !== state.nickname && state.typers.push(t.Name)
+            } else {
+              if (t.Name !== state.nickname) {
+                let index = state.typers.indexOf(t.Name)
+                state.typers.splice(index, 1)
+              }
+            }
+            this.views.chatRoom.update(state)
+            break
 
           case "ping":
             state.ws.send(JSON.stringify({
@@ -104,7 +118,7 @@
 
       this.ws.onclose = event => {
         console.log("WebSocket: Closed connection!", event)
-        this.initializeWebSocket(state)
+        this.init(state)
       }
 
       state.ws = this.ws
@@ -213,6 +227,7 @@
   class ChatRoomComponent {
 
     constructor(state) {
+      this.typing = false
       this.componentIsProper = false
       this.html = E$("div", this.generate(state))
     }
@@ -240,20 +255,22 @@
             )
           ),
 
-          // Currently typing people (TODO)
+          // Currently typing people
           E$("div", {style: "height: 4%; display: flex; justify-content: center; align-items: center;"},
-            E$("p", {style: "color: gainsboro;"}, "Users are typing... (this feature doesn't work yet)")
+            E$("p", {style: "color: cornflowerblue;", id: "typers"})
           ),
 
           // Chat input
           E$("div", {style: "height: 6%; display: flex;"},
             // Nick name thingy
-            E$("div", {style: "height: 100%; width: 10%; border: 1px solid gainsboro; display: flex; justify-content: center; align-items: center;"},
-              E$("p", `Say as ${state.nickname}`)
+            E$("div", {style: "height: 100%; width: 10%; background-color: cornflowerblue; color: white; display: flex; justify-content: center; align-items: center;"},
+              E$("p", state.nickname)
             ),
             // Input text
             E$("div", {style: "height: 100%; width: 90%; display: flex;"},
-              E$("input", {type: "text", placeholder: "Enter your message here (Press Enter to send)", style: "height: 100%; width: 100%; margin: 0; padding: 20px; outline: none; border: 0; background-color: gainsboro;", id: "chat-msg", onkeydown: this.inputKeyDown}),
+              E$("input", {
+                type: "text", placeholder: "Enter your message here (Press Enter to send)", style: "height: 100%; width: 100%; margin: 0; padding: 20px; outline: none; border: 0; background-color: gainsboro;",
+                id: "chat-msg", onkeydown: this.inputKeyDown, onkeyup: event => this.inputKeyUp(event, state)}),
               E$("button", {style: "display: none;", onclick: () => this.sendChatMessage(state)}, "Send")
             )
           )
@@ -261,10 +278,30 @@
       )
     }
 
-    inputKeyDown(event) {
+    inputKeyDown(event, state) {
       if (event.key === "Enter") {
         document.querySelector("button").click()
       }
+    }
+
+    inputKeyUp(event, state) {
+      if (this.typing) {
+        if (event.target.value.trim().length === 0) {
+         state.ws.send(JSON.stringify({
+           Type: "typing",
+           Body: "false"
+         }))
+         this.typing = false
+       }
+     } else {
+       if (event.target.value.trim().length > 0) {
+         state.ws.send(JSON.stringify({
+           Type: "typing",
+           Body: "true"
+         }))
+         this.typing = true
+       }
+     }
     }
 
     sendChatMessage(state) {
@@ -278,10 +315,12 @@
     }
 
     update(state) {
+      // Set up the component if needed
       if (!this.componentIsProper && state.nickname !== null && state.room !== null) {
         this.componentIsProper = true
         SETE$(this.html, this.generate(state))
       }
+      // Add messages to the screen if there are any
       for (let i = 0; i < state.chatlog.length; i++) {
         let msg = state.chatlog.shift()
         document.getElementById("messages").appendChild(
@@ -293,6 +332,14 @@
             T$(msg.Data)
           )
         )
+      }
+      // update typers status
+      for (let typers = document.getElementById("typers"); typers !== null; typers = null) {
+        if (state.typers.length > 0) {
+          SETE$(typers, E$("span", "People are typing: " + state.typers.join(", ")))
+        } else {
+          SETE$(typers, E$("span"))
+        }
       }
     }
 
