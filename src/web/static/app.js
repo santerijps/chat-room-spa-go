@@ -2,6 +2,7 @@
 
   // Applicatio state enum
   const APPSTATE = {
+    FAIL: -1, // Failed to connect to websocket
     INIT: 0,  // Connecting to the websocket
     JOIN: 1,  // Selecting a nickname
     ROOM: 2,  // Selecting a chat room
@@ -33,7 +34,7 @@
     }
 
     initializeWebSocket(state) {
-  
+
       this.ws = new WebSocket(
         (window.location.protocol === "https:" ? "wss://" : "ws://")
         + document.location.host
@@ -52,14 +53,14 @@
         const msg = JSON.parse(event.data)
 
         switch (msg.Type) {
-  
+
           case "create-user":
             msg.Body === "OK" ? (
               state.phaze = APPSTATE.ROOM,
-              this.ws.send(JSON.stringify({Type: "get-rooms"})),
+              this.ws.send(JSON.stringify({ Type: "get-rooms" })),
               this.update(state)
             )
-            : alert("Nickname is already in use!")
+              : alert("Nickname is already in use!")
             break
 
           case "get-rooms":
@@ -72,7 +73,7 @@
               state.phaze = APPSTATE.CHAT,
               this.update(state)
             )
-            : alert("Failed to join the chat room!")
+              : alert("Failed to join the chat room!")
             break
 
           case "send":
@@ -88,7 +89,7 @@
               })
             }
             break
-  
+
           case "typing":
             let t = JSON.parse(msg.Body)
             if (t.Typing) {
@@ -118,22 +119,27 @@
 
       this.ws.onclose = event => {
         console.log("WebSocket: Closed connection!", event)
-        this.init(state)
+        state.phaze = APPSTATE.FAIL
+        this.update(state)
       }
 
       state.ws = this.ws
 
     }
-  
+
     generate(state) {
-      if (state.phaze === APPSTATE.JOIN) return this.views.nameChooser.html
-      else if (state.phaze === APPSTATE.ROOM) return this.views.roomChooser.html
-      else if (state.phaze === APPSTATE.CHAT) return this.views.chatRoom.html
-      else return E$("p", "Failed to connect to WebSocket... Sorry :(")
+      switch (state.phaze) {
+        case APPSTATE.FAIL: return E$("p", "Failed to connect to the server! Sorry for the inconvinience!")
+        case APPSTATE.INIT: return this.views.loader.html
+        case APPSTATE.JOIN: return this.views.nameChooser.html
+        case APPSTATE.ROOM: return this.views.roomChooser.html
+        case APPSTATE.CHAT: return this.views.chatRoom.html
+        default: return E$("p", "Connecting to the server...")
+      }
     }
 
     update(state) {
-      for (const view in this.views) this.views[view].update(state)
+      for (const view in this.views) this.views[view].update?.(state)
       SETE$(this.html, this.generate(state))
       state.phaze === APPSTATE.ROOM && document.querySelector("select").focus()
     }
@@ -148,17 +154,17 @@
 
     generate(state) {
       return (
-        E$("div", {style: "position: fixed; top: 50%; left: 50%; transform: translate(-50%, -100%);"},
-          E$("p", 
+        E$("div", { style: "position: fixed; top: 50%; left: 50%; transform: translate(-50%, -100%);" },
+          E$("p",
             E$("b", "Choose your nickname:")
           ),
-          E$("p", {style: "font-size: xx-small;"}, "Between 2-15 characters long, alphanumeric characters and underscores allowed."),
+          E$("p", { style: "font-size: xx-small;" }, "Between 2-15 characters long, alphanumeric characters and underscores allowed."),
           E$("input", {
             type: "text", placeholder: "Enter your nickname here...", style: "display: block; width: 100%;", id: "nickname",
             onkeydown: this.inputKeyDown, maxlength: "15", minlength: "2", pattern: "^\w+$"
           }),
-          E$("div", {style: "text-align: right;"},
-            E$("button", {style: "margin-top: 10px;", onclick: () => this.tryJoinChat(state)}, "Join the chat!")
+          E$("div", { style: "text-align: right;" },
+            E$("button", { style: "margin-top: 10px;", onclick: () => this.tryJoinChat(state) }, "Join the chat!")
           )
         )
       )
@@ -196,15 +202,15 @@
 
     generate(state) {
       return (
-        E$("div", {style: "position: fixed; top: 50%; left: 50%; transform: translate(-50%, -100%);"},
-          E$("p", 
+        E$("div", { style: "position: fixed; top: 50%; left: 50%; transform: translate(-50%, -100%);" },
+          E$("p",
             E$("b", "Choose which room to join:")
           ),
-          E$("select", {style: "display: block;"},
-            state.rooms && state.rooms.map(room => E$("option", {value: room}, "Room: " + room))
+          E$("select", { style: "display: block;" },
+            state.rooms && state.rooms.map(room => E$("option", { value: room }, "Room: " + room))
           ),
-          E$("div", {style: "text-align: right;"},
-            E$("button", {style: "margin-top: 10px;", onclick: () => this.joinChatRoom(state)}, "Join selected chat room")
+          E$("div", { style: "text-align: right;" },
+            E$("button", { style: "margin-top: 10px;", onclick: () => this.joinChatRoom(state) }, "Join selected chat room")
           )
         )
       )
@@ -234,44 +240,47 @@
 
     generate(state) {
       return (
-        E$("div", {style: "height: 100%;"},
+        E$("div", { style: "height: 100%;" },
 
           // Heading
-          E$("div", {style: "margin: 0; height: 10%; box-shadow: 0 0 10px 0 #888888; display: flex;"},
-            E$("div", {style: "height: 100%; width: 50%; display: flex; justify-content: center; align-items: center; border-right: 1px solid gainsboro;"},
-              E$("h2", {style: "margin: 0;"}, `#${state.room}`)
+          E$("div", { style: "margin: 0; height: 10%; box-shadow: 0 0 10px 0 #888888; display: flex;" },
+            E$("div", { style: "height: 100%; width: 50%; display: flex; justify-content: center; align-items: center; border-right: 1px solid gainsboro;" },
+              E$("h2", { style: "margin: 0;" }, `#${state.room}`)
             ),
-            E$("div", {style: "height: 100%; width: 50%; display: flex; justify-content: center; align-items: center;"},
-              E$("input", {type: "checkbox", id: "auto-scroll", checked: "true", onchange: event => {
-                state.autoscroll = event.target.checked
-              }}),
+            E$("div", { style: "height: 100%; width: 50%; display: flex; justify-content: center; align-items: center;" },
+              E$("input", {
+                type: "checkbox", id: "auto-scroll", checked: "true", onchange: event => {
+                  state.autoscroll = event.target.checked
+                }
+              }),
               T$("Toggle automatic scrolling")
             )
           ),
 
           // Chat log
-          E$("div", {style: "height: 80%;"},
-            E$("div", {id: "messages", style: "height: 100%; overflow: auto; padding: 0 10px 0 10px;"}
+          E$("div", { style: "height: 80%;" },
+            E$("div", { id: "messages", style: "height: 100%; overflow: auto; padding: 0 10px 0 10px;" }
             )
           ),
 
           // Currently typing people
-          E$("div", {style: "height: 4%; display: flex; justify-content: center; align-items: center;"},
-            E$("p", {style: "color: cornflowerblue;", id: "typers"})
+          E$("div", { style: "height: 4%; display: flex; justify-content: center; align-items: center;" },
+            E$("p", { style: "color: cornflowerblue;", id: "typers" })
           ),
 
           // Chat input
-          E$("div", {style: "height: 6%; display: flex;"},
+          E$("div", { style: "height: 6%; display: flex;" },
             // Nick name thingy
-            E$("div", {style: "height: 100%; width: 10%; background-color: cornflowerblue; color: white; display: flex; justify-content: center; align-items: center;"},
+            E$("div", { style: "height: 100%; width: 10%; background-color: cornflowerblue; color: white; display: flex; justify-content: center; align-items: center;" },
               E$("p", state.nickname)
             ),
             // Input text
-            E$("div", {style: "height: 100%; width: 90%; display: flex;"},
+            E$("div", { style: "height: 100%; width: 90%; display: flex;" },
               E$("input", {
                 type: "text", placeholder: "Enter your message here (Press Enter to send)", style: "height: 100%; width: 100%; margin: 0; padding: 20px; outline: none; border: 0; background-color: gainsboro;",
-                id: "chat-msg", onkeydown: this.inputKeyDown, onkeyup: event => this.inputKeyUp(event, state)}),
-              E$("button", {style: "display: none;", onclick: () => this.sendChatMessage(state)}, "Send")
+                id: "chat-msg", onkeydown: this.inputKeyDown, onkeyup: event => this.inputKeyUp(event, state)
+              }),
+              E$("button", { style: "display: none;", onclick: () => this.sendChatMessage(state) }, "Send")
             )
           )
         )
@@ -287,21 +296,21 @@
     inputKeyUp(event, state) {
       if (this.typing) {
         if (event.target.value.trim().length === 0) {
-         state.ws.send(JSON.stringify({
-           Type: "typing",
-           Body: "false"
-         }))
-         this.typing = false
-       }
-     } else {
-       if (event.target.value.trim().length > 0) {
-         state.ws.send(JSON.stringify({
-           Type: "typing",
-           Body: "true"
-         }))
-         this.typing = true
-       }
-     }
+          state.ws.send(JSON.stringify({
+            Type: "typing",
+            Body: "false"
+          }))
+          this.typing = false
+        }
+      } else {
+        if (event.target.value.trim().length > 0) {
+          state.ws.send(JSON.stringify({
+            Type: "typing",
+            Body: "true"
+          }))
+          this.typing = true
+        }
+      }
     }
 
     sendChatMessage(state) {
@@ -324,9 +333,9 @@
       for (let i = 0; i < state.chatlog.length; i++) {
         let msg = state.chatlog.shift()
         document.getElementById("messages").appendChild(
-          E$("p", {style: `${msg.Sender === state.previousSender ? "margin: 5 0 0 0;" : "margin: 30 0 0 0;"} word-break: break-word;`}, 
-            E$("b", 
-              E$("span", {style: "color: gray;"}, `[${msg.Timestamp}] `),
+          E$("p", { style: `${msg.Sender === state.previousSender ? "margin: 5 0 0 0;" : "margin: 30 0 0 0;"} word-break: break-word;` },
+            E$("b",
+              E$("span", { style: "color: gray;" }, `[${msg.Timestamp}] `),
               E$("span", `${msg.Sender}: `)
             ),
             T$(msg.Data)
